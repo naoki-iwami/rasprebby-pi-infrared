@@ -1,8 +1,5 @@
-#!/usr/bin/env python
-
-import time
-import os
 import json
+import time
 
 import RPi.GPIO as GPIO
 import pigpio
@@ -27,7 +24,7 @@ pi = pigpio.pi()  # Connect to Pi.
 if not pi.connected:
     exit(0)
 
-print('connect OK')
+print('GPIO connect OK.')
 
 last_tick = 0
 in_code = False
@@ -67,14 +64,14 @@ def compare(p1, p2):
     if len(p1) != len(p2):
         return False
 
-#    print(f'compare {p1}, {p2}')
+    #    print(f'compare {p1}, {p2}')
 
     for i in range(len(p1)):
         v = p1[i] / p2[i]
         if (v < TOLER_MIN) or (v > TOLER_MAX):
             return False
 
-    print('HIT!!')
+    #    print('HIT!!')
     for i in range(len(p1)):
         p1[i] = int(round((p1[i] + p2[i]) / 2.0))
 
@@ -89,7 +86,7 @@ def end_of_code():
     if len(code) > SHORT:
         normalise(code)
         fetching_code = False
-        print(code)
+    #        print(code)
     else:
         code = []
         print("Short code, probably a repeat, try again")
@@ -98,7 +95,7 @@ def end_of_code():
 def cbf(gpio, level, tick):
     global last_tick, in_code, code, fetching_code
 
-    print(f'START cbf {level} {tick}')
+#    print(f'START cbf {level} {tick}')
     if level != pigpio.TIMEOUT:
 
         edge = pigpio.tickDiff(last_tick, tick)
@@ -134,20 +131,37 @@ with open('codes.json') as f:
 
     cb = pi.callback(IR_RX_PIN, pigpio.EITHER_EDGE, cbf)
 
-try:
-    while True:
-        code = []
-        fetching_code = True
-        while fetching_code:
-            time.sleep(0.1)
-        time.sleep(0.5)
-        key_name = "-"
-        for key, val in key_config.items():
-            if compare(val, code[:]):
-                key_name = key
-        print(f'key_name = {key_name}')
+    print('FINISH set ir callback method')
 
-except KeyboardInterrupt:
-    pass
-finally:
-    pi.stop()  # Disconnect from Pi.
+
+class InfraredServer:
+
+    def __init__(self, callback, *args):
+        self.callback = callback
+        print('InfraredServer::init start')
+        pass
+
+    def start(self):
+        global code, fetching_code
+        print('InfraredServer::start')
+        try:
+            while True:
+                code = []
+                fetching_code = True
+                while fetching_code:
+                    # print('time.sleep(0.1)')
+                    time.sleep(0.1)
+                print('fetching_code = False')
+                time.sleep(0.1)
+                key_name = "-"
+                for key, val in key_config.items():
+                    if compare(val, code[:]):
+                        key_name = key
+                print(f'key_name = {key_name}')
+                self.callback(key_name)
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            pi.stop()  # Disconnect from Pi.
+

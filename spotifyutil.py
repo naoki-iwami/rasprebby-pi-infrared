@@ -13,6 +13,7 @@ config = {
 }
 from oauthlib.oauth2 import WebApplicationClient
 
+
 def random_name(n):
     return ''.join([random.choice(string.ascii_letters + string.digits) for _ in range(n)])
 
@@ -26,13 +27,11 @@ class CallbackServer(BaseHTTPRequestHandler):
     VUE_APP_SPOTIFY_CLIENT_SECRET = config['VUE_APP_SPOTIFY_CLIENT_SECRET']
 
     def __init__(self, *args):
-        # self.callback = None
-        print('CallbackServer::init start')
+        print(f'CallbackServer::init start {args}')
         BaseHTTPRequestHandler.__init__(self, *args)
         print('CallbackServer::init finish')
 
-    def callback_method(self, path, query):
-        redirect_uri = 'http://192.168.1.65:8000/callback'
+    def callback_method(self, path, query, redirect_uri):
         print(f'path={path}, query = {query}')
 
         if path == '/callback':
@@ -51,8 +50,10 @@ class CallbackServer(BaseHTTPRequestHandler):
                     'grant_type': 'authorization_code'
                 }
                 encoded = base64.b64encode(
-                    f'{CallbackServer.VUE_APP_SPOTIFY_CLIENT_ID}:{CallbackServer.VUE_APP_SPOTIFY_CLIENT_SECRET}'.encode('utf-8')).decode("ascii")
+                    f'{CallbackServer.VUE_APP_SPOTIFY_CLIENT_ID}:{CallbackServer.VUE_APP_SPOTIFY_CLIENT_SECRET}'.encode(
+                        'utf-8')).decode("ascii")
                 print(encoded)
+                print(redirect_uri)
                 response = requests.post(
                     'https://accounts.spotify.com/api/token',
                     data=data,
@@ -61,6 +62,7 @@ class CallbackServer(BaseHTTPRequestHandler):
                     }
                 )
                 print(response)
+                print(response.text)
                 # print(response.json())
                 res_data = response.json()
                 CallbackServer.g_access_token = res_data['access_token']
@@ -80,6 +82,9 @@ class CallbackServer(BaseHTTPRequestHandler):
         path = parsed_path.path
         query = parsed_path.query
 
+        host = self.headers['Host']
+        redirect_uri = f'http://{host}/callback'
+
         if query == 'oauth':
             scope = [
                 'user-library-read',
@@ -93,8 +98,6 @@ class CallbackServer(BaseHTTPRequestHandler):
             CallbackServer.g_oauth_state = state
             print(f'g_oauth_state = {CallbackServer.g_oauth_state}')
             oauth = WebApplicationClient(CallbackServer.VUE_APP_SPOTIFY_CLIENT_ID)
-            host = self.headers['Host']
-            redirect_uri = f'http://{host}/callback'
             url, headers, body = oauth.prepare_authorization_request('https://accounts.spotify.com/authorize',
                                                                      redirect_url=redirect_uri,
                                                                      scope=scope,
@@ -106,18 +109,48 @@ class CallbackServer(BaseHTTPRequestHandler):
             return
 
         elif path == '/callback':
+            result = self.callback_method(parsed_path.path, query, redirect_uri)
+            self.send_response(302)
+            self.send_header('Location', '/spotify1')
+            self.end_headers()
+#            self.end_headers()
+#            message = result
+#            self.wfile.write(message.encode('utf-8'))
+            return
+
+        elif path == '/spotify1':
+            response = requests.get(
+                'https://api.spotify.com/v1/me/player/devices',
+                headers={
+                    'Authorization': f'Bearer {CallbackServer.g_access_token}'
+                }
+            )
+            print(response.json())
             self.send_response(200)
             self.end_headers()
-            result = self.callback_method(parsed_path.path, query)
-            message = result
+            message = response.text
             self.wfile.write(message.encode('utf-8'))
             return
+
+
 
         else:
             self.send_response(200)
             self.end_headers()
-            result = self.callback(parsed_path.path, query)
-            message = '\r\n'.join(result)
+            message = query
             self.wfile.write(message.encode('utf-8'))
             return
+
+    def ir1(self, name):
+        print(f'ir1 {name}')
+        response = requests.get(
+            'https://api.spotify.com/v1/me/player/devices',
+            headers={
+                'Authorization': f'Bearer {CallbackServer.g_access_token}'
+            }
+        )
+        data = response.json()
+        data['devices']
+        primary_device = next(filter(lambda device: device['type'] == 'Speaker', data['devices']), None)
+        print(primary_device['id'])
 
