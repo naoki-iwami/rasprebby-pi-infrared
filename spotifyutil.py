@@ -7,6 +7,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler
 from dotenv import dotenv_values
 
+import spotifyclient
+
 config = {
     **dotenv_values('.env'),
     **dotenv_values('.env.local'),
@@ -22,6 +24,9 @@ class CallbackServer(BaseHTTPRequestHandler):
     g_oauth_state = None
     g_access_token = None
     g_refresh_token = None
+
+    spotify_client = None
+#    primary_device_id = None
 
     VUE_APP_SPOTIFY_CLIENT_ID = config['VUE_APP_SPOTIFY_CLIENT_ID']
     VUE_APP_SPOTIFY_CLIENT_SECRET = config['VUE_APP_SPOTIFY_CLIENT_SECRET']
@@ -65,6 +70,10 @@ class CallbackServer(BaseHTTPRequestHandler):
                 print(response.text)
                 # print(response.json())
                 res_data = response.json()
+                CallbackServer.spotify_client = spotifyclient.SpotifyClient(
+                    access_token=res_data['access_token'],
+                    refresh_token=res_data['refresh_token']
+                )
                 CallbackServer.g_access_token = res_data['access_token']
                 CallbackServer.g_refresh_token = res_data['refresh_token']
                 return 'oauth OK!'
@@ -113,22 +122,18 @@ class CallbackServer(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header('Location', '/spotify1')
             self.end_headers()
-#            self.end_headers()
-#            message = result
-#            self.wfile.write(message.encode('utf-8'))
+            #            self.end_headers()
+            #            message = result
+            #            self.wfile.write(message.encode('utf-8'))
             return
 
         elif path == '/spotify1':
-            response = requests.get(
-                'https://api.spotify.com/v1/me/player/devices',
-                headers={
-                    'Authorization': f'Bearer {CallbackServer.g_access_token}'
-                }
+            CallbackServer.spotify_client.get(
+                '/v1/me/player/devices'
             )
-            print(response.json())
             self.send_response(200)
             self.end_headers()
-            message = response.text
+            message = 'devices'
             self.wfile.write(message.encode('utf-8'))
             return
 
@@ -143,14 +148,9 @@ class CallbackServer(BaseHTTPRequestHandler):
 
     def ir1(self, name):
         print(f'ir1 {name}')
-        response = requests.get(
-            'https://api.spotify.com/v1/me/player/devices',
-            headers={
-                'Authorization': f'Bearer {CallbackServer.g_access_token}'
-            }
-        )
-        data = response.json()
-        data['devices']
-        primary_device = next(filter(lambda device: device['type'] == 'Speaker', data['devices']), None)
-        print(primary_device['id'])
+        CallbackServer.spotify_client.get_devices()
+        CallbackServer.spotify_client.play_or_pause()
 
+    def play(self):
+
+        pass

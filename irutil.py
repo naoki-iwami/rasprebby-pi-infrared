@@ -3,10 +3,16 @@ import time
 
 import RPi.GPIO as GPIO
 import pigpio
+from dotenv import dotenv_values
+
+config = {
+    **dotenv_values('.env'),
+    **dotenv_values('.env.local'),
+}
 
 GPIO.setmode(GPIO.BCM)
 
-IR_RX_PIN = 5
+IR_RX_PIN = int(config['GPIO_BCM_PIN_NO_IR'])
 GLITCH = 100
 PRE_MS = 200
 POST_MS = 15
